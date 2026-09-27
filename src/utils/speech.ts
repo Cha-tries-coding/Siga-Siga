@@ -1,41 +1,47 @@
-let voicesPromise: Promise<SpeechSynthesisVoice[]> | null = null;
-
-function loadVoices(): Promise<SpeechSynthesisVoice[]> {
-  if (!voicesPromise) {
-    voicesPromise = new Promise((resolve) => {
-      const existing = window.speechSynthesis.getVoices();
-      if (existing.length > 0) {
-        resolve(existing);
-        return;
-      }
-
-      const onVoicesChanged = () => {
-        window.speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged);
-        resolve(window.speechSynthesis.getVoices());
-      };
-      window.speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
-      // Some browsers never fire voiceschanged; fall back after a short wait.
-      setTimeout(() => resolve(window.speechSynthesis.getVoices()), 300);
-    });
+export function speakGreek(text: string): boolean {
+  // Vérifie que le navigateur prend en charge la synthèse vocale
+  if (!("speechSynthesis" in window)) {
+    console.error("Speech synthesis is not supported by this browser.");
+    return false;
   }
-  return voicesPromise;
-}
 
-export async function speakGreek(text: string): Promise<boolean> {
-  if (!("speechSynthesis" in window)) return false;
+  const synth = window.speechSynthesis;
 
-  const voices = await loadVoices();
-  const greekVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("el"));
-
-  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-    window.speechSynthesis.cancel();
-  }
+  // Arrête la lecture précédente
+  synth.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
+
+  // Indique explicitement que le texte est en grec
   utterance.lang = "el-GR";
   utterance.rate = 0.9;
-  if (greekVoice) utterance.voice = greekVoice;
+  utterance.pitch = 1;
+  utterance.volume = 1;
 
-  window.speechSynthesis.speak(utterance);
+  // Cherche une voix grecque si elle est disponible
+  const voices = synth.getVoices();
+
+  const greekVoice = voices.find(
+    (voice) =>
+      voice.lang.toLowerCase() === "el-gr" ||
+      voice.lang.toLowerCase().startsWith("el")
+  );
+
+  if (greekVoice) {
+    utterance.voice = greekVoice;
+  }
+
+  utterance.onerror = (event) => {
+    console.error("Speech synthesis error:", event.error);
+  };
+
+  utterance.onstart = () => {
+    console.log("Greek speech started");
+  };
+
+  // IMPORTANT :
+  // speak() est appelé immédiatement pendant l'interaction utilisateur.
+  synth.speak(utterance);
+
   return true;
 }
